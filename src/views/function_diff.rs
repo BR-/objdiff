@@ -127,6 +127,119 @@ fn write_reloc(
     };
 }
 
+fn reloc_to_string(reloc: &ObjReloc) -> String {
+    let mut out = Vec::new();
+    let name = vec![
+        reloc.target.demangled_name.as_ref().unwrap_or(&reloc.target.name).to_string(),
+        match reloc.target.addend.cmp(&0i64) {
+            Ordering::Greater => format!("+{:#X}", reloc.target.addend),
+            Ordering::Less => format!("-{:#X}", reloc.target.addend),
+            _ => "".to_owned(),
+        },
+    ]
+    .join("");
+    match reloc.kind {
+        ObjRelocKind::PpcAddr16Lo => {
+            out.push(name);
+            out.push("@l".to_owned());
+        }
+        ObjRelocKind::PpcAddr16Hi => {
+            out.push(name);
+            out.push("@h".to_owned());
+        }
+        ObjRelocKind::PpcAddr16Ha => {
+            out.push(name);
+            out.push("@ha".to_owned());
+        }
+        ObjRelocKind::PpcEmbSda21 => {
+            out.push(name);
+            out.push("@sda21".to_owned());
+        }
+        ObjRelocKind::MipsHi16 => {
+            out.push("%hi(".to_owned());
+            out.push(name);
+            out.push(")".to_owned());
+        }
+        ObjRelocKind::MipsLo16 => {
+            out.push("%lo(".to_owned());
+            out.push(name);
+            out.push(")".to_owned());
+        }
+        ObjRelocKind::MipsGot16 => {
+            out.push("%got(".to_owned());
+            out.push(name);
+            out.push(")".to_owned());
+        }
+        ObjRelocKind::MipsCall16 => {
+            out.push("%call16(".to_owned());
+            out.push(name);
+            out.push(")".to_owned());
+        }
+        ObjRelocKind::MipsGpRel16 => {
+            out.push("%gp_rel(".to_owned());
+            out.push(name);
+            out.push(")".to_owned());
+        }
+        ObjRelocKind::PpcRel24 | ObjRelocKind::PpcRel14 | ObjRelocKind::Mips26 => {
+            out.push(name);
+        }
+        ObjRelocKind::Absolute | ObjRelocKind::MipsGpRel32 => {
+            out.push("[INVALID]".to_owned());
+        }
+    }
+    out.join("")
+}
+
+fn ins_to_string(ins: &ObjIns) -> String {
+    let mut out = Vec::new();
+    out.push(ins.mnemonic.clone());
+    let mut writing_offset = false;
+    for (i, arg) in ins.args.iter().enumerate() {
+        if i == 0 {
+            out.push(" ".to_string());
+        } else if !writing_offset {
+            out.push(", ".to_string());
+        }
+        let mut new_writing_offset = false;
+        match arg {
+            ObjInsArg::PpcArg(arg) => match arg {
+                Argument::Offset(val) => {
+                    out.push(format!("{val}("));
+                    new_writing_offset = true;
+                }
+                _ => {
+                    out.push(format!("{arg}"));
+                }
+            },
+            ObjInsArg::Reloc => {
+                out.push(reloc_to_string(ins.reloc.as_ref().unwrap()));
+            }
+            ObjInsArg::RelocWithBase => {
+                out.push(reloc_to_string(ins.reloc.as_ref().unwrap()));
+                out.push("(".to_string());
+                new_writing_offset = true;
+            }
+            ObjInsArg::MipsArg(str) => {
+                out.push(str.strip_prefix('$').unwrap_or(str).to_string());
+            }
+            ObjInsArg::MipsArgWithBase(str) => {
+                out.push(str.strip_prefix('$').unwrap_or(str).to_string());
+                out.push("(".to_string());
+                new_writing_offset = true;
+            }
+            ObjInsArg::BranchOffset(offset) => {
+                let addr = offset + ins.address as i32 - ins.address as i32;
+                out.push(format!("{addr:x}"));
+            }
+        }
+        if writing_offset {
+            out.push(")".to_string());
+        }
+        writing_offset = new_writing_offset;
+    }
+    out.join("")
+}
+
 fn write_ins(
     ins: &ObjIns,
     diff_kind: &ObjInsDiffKind,
@@ -339,6 +452,11 @@ fn ins_context_menu(ui: &mut egui::Ui, ins: &ObjIns) {
         ui.style_mut().wrap = Some(false);
 
         // if ui.button("Copy hex").clicked() {}
+
+        if ui.button("Copy instruction").clicked() {
+            ui.output_mut(|output| output.copied_text = ins_to_string(ins));
+            ui.close_menu();
+        }
 
         for arg in &ins.args {
             if let ObjInsArg::PpcArg(arg) = arg {
