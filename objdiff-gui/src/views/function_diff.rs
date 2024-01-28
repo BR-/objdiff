@@ -384,6 +384,14 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                         {
                             state.queue_scratch = true;
                         }
+                        if ui
+                            .add_enabled(!state.m2c_running, egui::Button::new("M2C"))
+                            .on_hover_text_at_pointer("Decompile this function")
+                            .on_disabled_hover_text("M2C is already working...")
+                            .clicked()
+                        {
+                            state.queue_m2c = true;
+                        }
                     });
 
                     let name = selected_symbol
