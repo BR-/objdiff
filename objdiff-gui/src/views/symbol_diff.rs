@@ -20,6 +20,14 @@ use crate::{
     views::{appearance::Appearance, function_diff::FunctionViewState, write_text},
 };
 
+#[derive(Default, Copy, Clone, PartialEq, Eq, Debug)]
+enum NodeOpen {
+    #[default]
+    Default,
+    Open,
+    Close,
+}
+
 pub struct SymbolRefByName {
     pub symbol_name: String,
     pub demangled_symbol_name: Option<String>,
@@ -279,7 +287,13 @@ fn symbol_list_ui(
     lower_search: &str,
     appearance: &Appearance,
     left: bool,
+    node_open: NodeOpen,
 ) -> Option<View> {
+    let open = match node_open {
+        NodeOpen::Default => None,
+        NodeOpen::Open => Some(true),
+        NodeOpen::Close => Some(false),
+    };
     let mut ret = None;
     ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
         ui.scope(|ui| {
@@ -287,7 +301,7 @@ fn symbol_list_ui(
             ui.style_mut().wrap = Some(false);
 
             if !obj.0.common.is_empty() {
-                CollapsingHeader::new(".comm").default_open(true).show(ui, |ui| {
+                CollapsingHeader::new(".comm").default_open(true).open(open).show(ui, |ui| {
                     for (symbol, symbol_diff) in obj.0.common.iter().zip(&obj.1.common) {
                         ret = ret.or(symbol_ui(
                             ui,
@@ -331,6 +345,7 @@ fn symbol_list_ui(
                 CollapsingHeader::new(header)
                     .id_source(Id::new(section.name.clone()).with(section.orig_index))
                     .default_open(true)
+                    .open(open)
                     .show(ui, |ui| {
                         if section.kind == ObjSectionKind::Code && state.reverse_fn_order {
                             for (symbol, symbol_diff) in
@@ -412,6 +427,8 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
         return;
     };
 
+    let mut node_open = NodeOpen::Default;
+
     // Header
     let available_width = ui.available_width();
     let column_width = available_width / 2.0;
@@ -469,9 +486,22 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                         }
                     });
 
-                    if ui.add_enabled(!state.build_running, egui::Button::new("Build")).clicked() {
-                        state.queue_build = true;
-                    }
+                    ui.horizontal(|ui| {
+                        if ui
+                            .add_enabled(!state.build_running, egui::Button::new("Build"))
+                            .clicked()
+                        {
+                            state.queue_build = true;
+                        }
+
+                        if ui.small_button("⏶").on_hover_text_at_pointer("Collapse all").clicked()
+                        {
+                            node_open = NodeOpen::Close;
+                        }
+                        if ui.small_button("⏷").on_hover_text_at_pointer("Expand all").clicked() {
+                            node_open = NodeOpen::Open;
+                        }
+                    });
                 },
             );
         },
@@ -495,6 +525,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     &lower_search,
                                     appearance,
                                     true,
+                                    node_open,
                                 ));
                             } else {
                                 missing_obj_ui(ui, appearance);
@@ -515,6 +546,7 @@ pub fn symbol_diff_ui(ui: &mut Ui, state: &mut DiffViewState, appearance: &Appea
                                     &lower_search,
                                     appearance,
                                     false,
+                                    node_open,
                                 ));
                             } else {
                                 missing_obj_ui(ui, appearance);
