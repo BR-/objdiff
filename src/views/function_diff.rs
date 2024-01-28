@@ -614,7 +614,21 @@ pub fn function_diff_ui(ui: &mut egui::Ui, state: &mut DiffViewState, appearance
                     );
                     job.wrap.break_anywhere = true;
                     job.wrap.max_rows = 1;
-                    ui.label(job);
+                    ui.label(job).context_menu(|ui| {
+                        ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
+                        ui.style_mut().wrap = Some(false);
+
+                        if let Some(name) = &demangled {
+                            if ui.button(format!("Copy \"{}\"", name)).clicked() {
+                                ui.output_mut(|output| output.copied_text = name.clone());
+                                ui.close_menu();
+                            }
+                        }
+                        if ui.button(format!("Copy \"{}\"", name)).clicked() {
+                            ui.output_mut(|output| output.copied_text = name.to_string());
+                            ui.close_menu();
+                        }
+                    });
 
                     ui.scope(|ui| {
                         ui.style_mut().override_text_style = Some(egui::TextStyle::Monospace);
