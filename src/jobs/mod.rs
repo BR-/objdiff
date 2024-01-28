@@ -11,12 +11,13 @@ use anyhow::Result;
 
 use crate::jobs::{
     check_update::CheckUpdateResult, create_scratch::CreateScratchResult, objdiff::ObjDiffResult,
-    update::UpdateResult,
+    run_m2c::RunM2CResult, update::UpdateResult,
 };
 
 pub mod check_update;
 pub mod create_scratch;
 pub mod objdiff;
+pub mod run_m2c;
 pub mod update;
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -25,6 +26,7 @@ pub enum Job {
     CheckUpdate,
     Update,
     CreateScratch,
+    RunM2C,
 }
 pub static JOB_ID: AtomicUsize = AtomicUsize::new(0);
 
@@ -125,6 +127,7 @@ pub enum JobResult {
     CheckUpdate(Option<Box<CheckUpdateResult>>),
     Update(Box<UpdateResult>),
     CreateScratch(Option<Box<CreateScratchResult>>),
+    RunM2C(Option<Box<RunM2CResult>>),
 }
 
 fn should_cancel(rx: &Receiver<()>) -> bool {

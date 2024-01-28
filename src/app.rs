@@ -132,6 +132,8 @@ pub struct AppConfig {
     pub queue_scratch: bool,
     #[serde(skip)]
     pub project_config_info: Option<ProjectConfigInfo>,
+    #[serde(skip)]
+    pub queue_m2c: bool,
 }
 
 impl Default for AppConfig {
@@ -161,6 +163,7 @@ impl Default for AppConfig {
             queue_build: false,
             queue_reload: false,
             queue_scratch: false,
+            queue_m2c: false,
             project_config_info: None,
         }
     }
@@ -278,7 +281,9 @@ impl App {
                             }
                             self.should_relaunch = true;
                         }
-                        _ => results.push(result),
+                        _ => {
+                            results.push(result);
+                        }
                     }
                 }
                 Err(err) => {

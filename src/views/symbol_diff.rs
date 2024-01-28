@@ -11,6 +11,7 @@ use crate::{
     jobs::{
         create_scratch::{start_create_scratch, CreateScratchConfig, CreateScratchResult},
         objdiff::{BuildStatus, ObjDiffResult},
+        run_m2c::{start_run_m2c, RunM2CConfig},
         Job, JobQueue, JobResult,
     },
     obj::{ObjInfo, ObjSection, ObjSectionKind, ObjSymbol, ObjSymbolFlags},
@@ -44,6 +45,9 @@ pub struct DiffViewState {
     pub scratch_available: bool,
     pub queue_scratch: bool,
     pub scratch_running: bool,
+    pub queue_m2c: bool,
+    pub m2c_running: bool,
+    pub m2c_available: bool,
 }
 
 #[derive(Default)]
@@ -66,10 +70,12 @@ impl DiffViewState {
                 self.scratch = take(result);
                 false
             }
+            JobResult::RunM2C(_result) => false,
             _ => true,
         });
         self.build_running = jobs.is_running(Job::ObjDiff);
         self.scratch_running = jobs.is_running(Job::CreateScratch);
+        self.m2c_running = jobs.is_running(Job::RunM2C);
 
         self.symbol_state.disable_reverse_fn_order = false;
         if let Ok(config) = config.read() {
@@ -80,6 +86,7 @@ impl DiffViewState {
                 }
             }
             self.scratch_available = CreateScratchConfig::is_available(&config);
+            self.m2c_available = RunM2CConfig::is_available(&config);
         }
     }
 
@@ -109,6 +116,24 @@ impl DiffViewState {
                         }
                         Err(err) => {
                             log::error!("Failed to create scratch config: {err}");
+                        }
+                    }
+                }
+            }
+        }
+
+        if self.queue_m2c {
+            self.queue_m2c = false;
+            if let Some(function_name) =
+                self.symbol_state.selected_symbol.as_ref().map(|sym| sym.symbol_name.clone())
+            {
+                if let Ok(config) = config.read() {
+                    match RunM2CConfig::from_config(&config, function_name) {
+                        Ok(config) => {
+                            jobs.push_once(Job::RunM2C, || start_run_m2c(ctx, config));
+                        }
+                        Err(err) => {
+                            log::error!("Failed to create M2C config: {err}");
                         }
                     }
                 }
