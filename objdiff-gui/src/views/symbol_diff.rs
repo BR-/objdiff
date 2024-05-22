@@ -296,7 +296,7 @@ fn symbol_ui(
 
 fn symbol_matches_search(symbol: &ObjSymbol, search_str: &str) -> bool {
     search_str.is_empty()
-        || symbol.name.contains(search_str)
+        || symbol.name.to_ascii_lowercase().contains(search_str)
         || symbol
             .demangled_name
             .as_ref()
