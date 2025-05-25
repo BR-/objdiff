@@ -161,6 +161,12 @@ pub fn diff_view_ui(
                         {
                             ret = Some(DiffViewAction::CreateScratch(symbol.name.clone()));
                         }
+                        if ui
+                            .add_enabled(left_ctx.has_symbol(), egui::Button::new("Run M2C"))
+                            .clicked()
+                        {
+                            ret = Some(DiffViewAction::RunM2C(symbol.name.clone()));
+                        }
                     }
                 });
             }

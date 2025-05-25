@@ -65,6 +65,8 @@ pub enum DiffViewAction {
     CreateScratch(String),
     /// Open the source path of the current object
     OpenSourcePath,
+    /// Run M2C on the current function
+    RunM2C(String),
     /// Set the highlight for a diff column
     SetDiffHighlight(usize, HighlightKind),
     /// Clear the highlight for all diff columns
@@ -290,6 +292,31 @@ impl DiffViewState {
                         log::error!("Failed to open source file: {err}");
                     });
                 }
+            }
+            DiffViewAction::RunM2C(function_name) => {
+                let Ok(state) = state.read() else {
+                    return;
+                };
+                let Some(project_dir) = state.config.project_dir.as_ref() else {
+                    return;
+                };
+                let _ = std::process::Command::new("cmd")
+                    .current_dir(project_dir)
+                    .args([
+                        "/c",
+                        "python",
+                        "tools/decomp.py",
+                        "--no-print",
+                        "--format",
+                        "--colorize",
+                    ])
+                    .arg(function_name)
+                    .args([
+                        "--valid-syntax",
+                        "--no-casts",
+                        "--stack-structs",
+                    ])
+                    .spawn();
             }
             DiffViewAction::SetDiffHighlight(column, kind) => {
                 self.function_state.set_highlight(column, kind);
