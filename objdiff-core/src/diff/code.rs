@@ -115,7 +115,14 @@ pub fn diff_code(
         },
         diff_config,
     )?;
-    let (mut left_rows, mut right_rows) = diff_instructions(&left_ops, &right_ops)?;
+    let (mut left_rows, mut right_rows) = diff_instructions(
+        left_obj,
+        right_obj,
+        left_symbol_idx,
+        right_symbol_idx,
+        &left_ops,
+        &right_ops,
+    )?;
     resolve_branches(&left_ops, &mut left_rows);
     resolve_branches(&right_ops, &mut right_rows);
 
@@ -165,7 +172,113 @@ pub fn diff_code(
     ))
 }
 
+struct Bl {
+    index: usize,
+    target: String,
+}
+
+impl PartialEq for Bl {
+    fn eq(&self, other: &Bl) -> bool {
+        self.target == other.target
+    }
+}
+
+impl Eq for Bl {}
+
+impl PartialOrd for Bl {
+    fn partial_cmp(&self, other: &Bl) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Bl {
+    fn cmp(&self, other: &Bl) -> std::cmp::Ordering {
+        self.target.cmp(&other.target)
+    }
+}
+
+impl std::hash::Hash for Bl {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.target.hash(state);
+    }
+}
+
+fn find_bls(obj: &Object, symbol_idx: usize, insts: &[InstructionRef]) -> Vec<Bl> {
+    let mut result = Vec::new();
+    for (index, &inst) in insts.iter().enumerate() {
+        let Some(resolved) = obj.resolve_instruction_ref(symbol_idx, inst) else {
+            continue;
+        };
+        let Ok(bytes) = resolved.code.try_into() else {
+            continue;
+        };
+        let code = u32::from_be_bytes(bytes);
+        let op = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
+        let ins = ppc750cl::Ins { code, op };
+        if op == ppc750cl::Opcode::B && ins.field_lk() {
+            if let Some(reloc) = resolved.relocation {
+                result.push(Bl { index, target: reloc.symbol.name.clone() });
+            }
+        }
+    }
+    result
+}
+
 fn diff_instructions(
+    left_obj: &Object,
+    right_obj: &Object,
+    left_symbol_idx: usize,
+    right_symbol_idx: usize,
+    left_insts: &[InstructionRef],
+    right_insts: &[InstructionRef],
+) -> Result<(Vec<InstructionDiffRow>, Vec<InstructionDiffRow>)> {
+    let left_bls = find_bls(left_obj, left_symbol_idx, left_insts);
+    let right_bls = find_bls(right_obj, right_symbol_idx, right_insts);
+    let ops = similar::capture_diff_slices(similar::Algorithm::Patience, &left_bls, &right_bls);
+
+    let mut left_diff = Vec::new();
+    let mut right_diff = Vec::new();
+
+    let mut left_start_index = 0;
+    let mut right_start_index = 0;
+
+    for op in ops {
+        if let similar::DiffOp::Equal { old_index, new_index, len } = op {
+            for offset in 0..len {
+                let left_end_index = left_bls[old_index + offset].index;
+                let right_end_index = right_bls[new_index + offset].index;
+                let (l, r) = diff_instructions_inner(
+                    &left_insts[left_start_index..left_end_index],
+                    &right_insts[right_start_index..right_end_index],
+                )?;
+                left_start_index = left_end_index + 1;
+                right_start_index = right_end_index + 1;
+
+                left_diff.extend(l);
+                right_diff.extend(r);
+
+                left_diff.push(InstructionDiffRow {
+                    ins_ref: Some(left_insts[left_end_index]),
+                    ..Default::default()
+                });
+                right_diff.push(InstructionDiffRow {
+                    ins_ref: Some(right_insts[right_end_index]),
+                    ..Default::default()
+                });
+            }
+        }
+    }
+    let (l, r) = diff_instructions_inner(
+        &left_insts[left_start_index..],
+        &right_insts[right_start_index..],
+    )?;
+    left_diff.extend(l);
+    right_diff.extend(r);
+
+    Ok((left_diff, right_diff))
+}
+
+fn diff_instructions_inner(
     left_insts: &[InstructionRef],
     right_insts: &[InstructionRef],
 ) -> Result<(Vec<InstructionDiffRow>, Vec<InstructionDiffRow>)> {
