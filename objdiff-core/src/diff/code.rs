@@ -213,9 +213,9 @@ fn find_bls(obj: &Object, symbol_idx: usize, insts: &[InstructionRef]) -> Vec<Bl
             continue;
         };
         let code = u32::from_be_bytes(bytes);
-        let op = ppc750cl::Opcode::from(resolved.ins_ref.opcode as u8);
-        let ins = ppc750cl::Ins { code, op };
-        if op == ppc750cl::Opcode::B && ins.field_lk() {
+        let op = powerpc::Opcode::from(resolved.ins_ref.opcode);
+        let ins = powerpc::Ins { code, op };
+        if op == powerpc::Opcode::B && ins.field_lk() {
             if let Some(reloc) = resolved.relocation {
                 result.push(Bl { index, target: reloc.symbol.name.clone() });
             }
