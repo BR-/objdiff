@@ -317,8 +317,12 @@ fn reloc_eq(
             // Match if section and name or address match
             section_name_eq(left_obj, right_obj, *sl, *sr)
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::DataValue
-                    || symbol_name_addend_matches
-                    || address_eq(left_reloc, right_reloc))
+                    || (if right_reloc.symbol.name.starts_with("@") {
+                            display_ins_data_literals(left_obj, left_ins)
+                                == display_ins_data_literals(right_obj, right_ins)
+                        } else {
+                            symbol_name_addend_matches || address_eq(left_reloc, right_reloc)
+                        }))
                 && (diff_config.function_reloc_diffs == FunctionRelocDiffs::NameAddress
                     || left_reloc.symbol.kind != SymbolKind::Object
                     || right_reloc.symbol.size == 0 // Likely a pool symbol like ...data, don't treat this as a diff
