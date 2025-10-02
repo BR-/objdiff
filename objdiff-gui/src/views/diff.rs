@@ -173,6 +173,13 @@ pub fn diff_view_ui(
             // First row
             if state.current_view == View::SymbolDiff {
                 ui.label(RichText::new("Target object").text_style(egui::TextStyle::Monospace));
+                let filepath = state.object_name.splitn(2, "/").nth(1).map(|s| s.to_owned() + ".s");
+                if ui
+                    .add_enabled(left_ctx.obj.is_some() && filepath.is_some(), egui::Button::new("Run M2C (whole-file)"))
+                    .clicked()
+                {
+                    ret = Some(DiffViewAction::RunM2C(filepath.unwrap()));
+                }
             } else {
                 ui.horizontal(|ui| {
                     if ui.button("⏴ Back").clicked() || hotkeys::back_pressed(ui.ctx()) {
