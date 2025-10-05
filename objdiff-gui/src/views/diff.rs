@@ -678,6 +678,7 @@ fn diff_col_ui(
                 appearance,
                 column,
                 open_sections,
+                diff_config,
             ) {
                 match (column, action) {
                     (
@@ -716,6 +717,7 @@ fn diff_col_ui(
                 appearance,
                 column,
                 open_sections,
+                diff_config,
             ) {
                 ret = Some(result);
             }
